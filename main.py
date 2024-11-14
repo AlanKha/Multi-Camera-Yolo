@@ -4,93 +4,99 @@ import obsws_python as obs
 import time
 import json
 
-# Load configuration from JSON file
-with open("config.json", "r") as config_file:
-    config = json.load(config_file)
+class YOLOSceneSwitcher:
+    def __init__(self, config_path="config.json", model_path="yolo11n.pt", camera_index=1):
+        # Load configuration from JSON file
+        with open(config_path, "r") as config_file:
+            config = json.load(config_file)
 
+        # Initialize attributes for the OBS WebSocket
+        self.host = config["host"]
+        self.port = config["port"]
+        self.password = config["password"]
 
-# Load the YOLO model
-model = YOLO("yolo11n.pt")
+        # Load the YOLO model
+        self.model = YOLO(model_path)
 
-# Open a connection to the webcam (0 is the default camera, use 1, 2 for other cameras)
-cap = cv2.VideoCapture(1)
+        # Open a connection to the webcam
+        self.cap = cv2.VideoCapture(camera_index)
+        if not self.cap.isOpened():
+            raise Exception("Error: Could not access the webcam.")
 
-# Check if the webcam is opened correctly
-if not cap.isOpened():
-    print("Error: Could not access the webcam.")
-    exit()
+        # Initialize the OBS client
+        self.client = obs.ReqClient(host=self.host, port=self.port, password=self.password, timeout=3)
 
-# OBS WebSocket connection details
-host = config["host"]
-port = config["port"]
-password = config["password"]
+        # Load scenes from OBS once at initialization
+        self.scenes = self._get_scenes()
+        self.current_scene_index = 0
 
-# Initialize the OBS client
-client = obs.ReqClient(host=host, port=port, password=password, timeout=3)
+    def _get_scenes(self):
+        """Retrieve the list of scenes from OBS."""
+        try:
+            scenes_response = self.client.get_scene_list()
+            return [scene['sceneName'] for scene in scenes_response.scenes]
+        except Exception as e:
+            print("Error retrieving scenes:", e)
+            return []
 
-def switch_scenes():
-    try:
-        # Get the current scene name
-        response = client.get_current_program_scene()
-        current_scene = response.current_program_scene_name
+    def switch_to_next_scene(self):
+        """Switch to the next scene in the list."""
+        try:
+            # Determine the next scene in the list
+            self.current_scene_index = (self.current_scene_index + 1) % len(self.scenes)
+            next_scene = self.scenes[self.current_scene_index]
 
-        # Get the list of all scenes
-        scenes_response = client.get_scene_list()
-        scenes = [scene['sceneName'] for scene in scenes_response.scenes]
+            # Switch to the next scene
+            self.client.set_current_program_scene(next_scene)
+            print(f"Switched to '{next_scene}'")
+        except Exception as e:
+            print("An error occurred while switching scenes:", e)
 
-        # Find the index of the current scene
-        current_index = scenes.index(current_scene)
+    def detect_and_switch_scene(self):
+        """Main loop for detecting objects and switching scenes."""
+        while True:
+            # Read a frame from the webcam
+            ret, frame = self.cap.read()
+            if not ret:
+                print("Error: Failed to grab frame.")
+                break
 
-        # Determine the next scene in the list
-        next_index = (current_index + 1) % len(scenes)
-        next_scene = scenes[next_index]
+            # Perform object detection on the frame
+            results = self.model(frame)
 
-        # Switch to the next scene
-        client.set_current_program_scene(next_scene)
-        print(f"Switched from '{current_scene}' to '{next_scene}'")
+            # Get prediction details
+            predictions = results[0].names
+            detected_classes = results[0].boxes.cls.tolist()
 
-    except Exception as e:
-        print("An error occurred:", e)
+            # Print the detected classes
+            print("Predictions:", [predictions[cls] for cls in detected_classes])
 
-def main():
-    while True:
-        # Read a frame from the webcam
-        ret, frame = cap.read()
-        
-        if not ret:
-            print("Error: Failed to grab frame.")
-            break
+            # Switch scenes based on detection
+            self.switch_to_next_scene()
 
-        # Perform object detection on the frame
-        results = model(frame)
-        
-        # Get prediction details
-        predictions = results[0].names
-        detected_classes = results[0].boxes.cls.tolist()
-        
-        # Print the detected classes and their predictions
-        print("Predictions:", [predictions[cls] for cls in detected_classes])
+            # Display results on the frame
+            frame_with_boxes = results[0].plot()  # Plot detected boxes on the frame
             
-        # Optional: add time delay to slow down the detection process
-        time.sleep(0)
-        
-        # Switch scenes after detecting an object
+            # Show the frame with detections
+            cv2.namedWindow("Webcam Object Detection", cv2.WINDOW_NORMAL)  # Make the window resizable
+            cv2.imshow("Webcam Object Detection", frame_with_boxes)
 
-        switch_scenes()
+            # Break the loop if the user presses 'q'
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
-        # Display results on the frame
-        frame_with_boxes = results[0].plot()  # Plot detected boxes on the frame
-        
-        # Show the frame with detections
-        cv2.namedWindow("Webcam Object Detection", cv2.WINDOW_NORMAL)  # Make the window resizable
-        cv2.imshow("Webcam Object Detection", frame_with_boxes)
-        # Break the loop if the user presses 'q'
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+            # Optional delay to control processing speed
+            time.sleep(0)
 
-    # Release the webcam and close OpenCV windows
-    cap.release()
-    cv2.destroyAllWindows()
+    def release_resources(self):
+        """Release resources."""
+        self.cap.release()
+        cv2.destroyAllWindows()
 
+# Usage
 if __name__ == '__main__':
-    main()
+    switcher = YOLOSceneSwitcher()
+    try:
+        switcher.detect_and_switch_scene()
+    finally:
+        switcher.release_resources()
