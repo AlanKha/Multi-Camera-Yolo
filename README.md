@@ -19,4 +19,7 @@ Also worth noting: for optimal performance, set OBS's 'Scene Transition' to Cut.
 2. In that same window, set up the server port and password in the Server Settings section.
 3. Adjust ```config.json``` to reflect the port and password from step 2
 4. Set Scene Transitions to Cut to avoid any effects from hindering YOLO's performance
-5. Make the scenes and run main.py to start the script
+5. Make the scenes
+6. Start an OBS Virtual Camera
+   - Note: You may need to adjust the camera index in ```main.py``` depending on the number of cameras you have plugged into your computer.
+8. run main.py to start the script
