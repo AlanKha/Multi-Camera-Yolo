@@ -2,6 +2,12 @@ import cv2
 from ultralytics import YOLO
 import obsws_python as obs
 import time
+import json
+
+# Load configuration from JSON file
+with open("config.json", "r") as config_file:
+    config = json.load(config_file)
+
 
 # Load the YOLO model
 model = YOLO("yolo11n.pt")
@@ -15,9 +21,9 @@ if not cap.isOpened():
     exit()
 
 # OBS WebSocket connection details
-host = 'localhost'
-port = 4455
-password = 'tKXXzjBBJpZxKV45'
+host = config["host"]
+port = config["port"]
+password = config["password"]
 
 # Initialize the OBS client
 client = obs.ReqClient(host=host, port=port, password=password, timeout=3)
@@ -46,37 +52,45 @@ def switch_scenes():
     except Exception as e:
         print("An error occurred:", e)
 
-while True:
-    # Read a frame from the webcam
-    ret, frame = cap.read()
-    
-    if not ret:
-        print("Error: Failed to grab frame.")
-        break
+def main():
+    while True:
+        # Read a frame from the webcam
+        ret, frame = cap.read()
+        
+        if not ret:
+            print("Error: Failed to grab frame.")
+            break
 
-    # Perform object detection on the frame
-    results = model(frame)
-    
-    # Get prediction details
-    predictions = results[0].names
-    detected_classes = results[0].boxes.cls.tolist()
-    
-    print("Predictions:", [predictions[cls] for cls in detected_classes])
+        # Perform object detection on the frame
+        results = model(frame)
+        
+        # Get prediction details
+        predictions = results[0].names
+        detected_classes = results[0].boxes.cls.tolist()
+        
+        # Print the detected classes and their predictions
+        print("Predictions:", [predictions[cls] for cls in detected_classes])
+            
+        # Optional: add time delay to slow down the detection process
+        time.sleep(0)
         
         # Switch scenes after detecting an object
-    time.sleep(0)
-    switch_scenes()
 
-    # Display results on the frame
-    frame_with_boxes = results[0].plot()  # Plot detected boxes on the frame
-    
-    # Show the frame with detections
-    cv2.namedWindow("Webcam Object Detection", cv2.WINDOW_NORMAL)  # Make the window resizable
-    cv2.imshow("Webcam Object Detection", frame_with_boxes)
-    # Break the loop if the user presses 'q'
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        switch_scenes()
 
-# Release the webcam and close OpenCV windows
-cap.release()
-cv2.destroyAllWindows()
+        # Display results on the frame
+        frame_with_boxes = results[0].plot()  # Plot detected boxes on the frame
+        
+        # Show the frame with detections
+        cv2.namedWindow("Webcam Object Detection", cv2.WINDOW_NORMAL)  # Make the window resizable
+        cv2.imshow("Webcam Object Detection", frame_with_boxes)
+        # Break the loop if the user presses 'q'
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    # Release the webcam and close OpenCV windows
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == '__main__':
+    main()

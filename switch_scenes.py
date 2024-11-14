@@ -1,10 +1,15 @@
 import obsws_python as obs
 import time
+import json
+
+# Load configuration from JSON file
+with open("config.json", "r") as config_file:
+    config = json.load(config_file)
 
 # Connection info
-host = 'localhost'
-port = 4455
-password = 'tKXXzjBBJpZxKV45'
+host = config["host"]
+port = config["port"]
+password = config["password"]
 
 # Initialize the client
 client = obs.ReqClient(host=host, port=port, password=password, timeout=3)
