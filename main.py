@@ -69,6 +69,8 @@ class YOLOSceneSwitcher:
             detected_classes = results[0].boxes.cls.tolist()
 
             # Print the detected classes
+            current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            print(f"[{current_time}] Detected classes:", detected_classes)
             print("Predictions:", [predictions[cls] for cls in detected_classes])
 
             # Switch scenes based on detection
